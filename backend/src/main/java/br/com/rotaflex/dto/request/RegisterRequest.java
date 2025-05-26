@@ -7,46 +7,51 @@ import javax.validation.constraints.*;
 @Data
 public class RegisterRequest {
 
-    @NotBlank(message = "Username is required")
+    @NotBlank(message = "Nome é obrigatório")
     private String username;
 
-    @NotBlank(message = "Password is required")
+    @NotBlank(message = "Sobrenome é obrigatório")
+    private String sobrenome;
+
+    @NotBlank(message = "Senha é obrigatória")
     private String password;
 
-    @Email(message = "Email should be valid")
+    @NotBlank(message = "Email é obrigatório")
+    @Email(message = "Email inválido")
     private String email;
 
-    @NotBlank(message = "CPF is required")
-    @Pattern(regexp = "^[0-9]{11}$", message = "CPF must contain only 11 digits")
+    @NotBlank(message = "CPF é obrigatório")
+    @Pattern(regexp = "^[0-9]{11}$", message = "CPF deve conter exatamente 11 dígitos")
     private String cpf;
 
-    @NotNull(message = "Tipo is required")
-    private Integer tipo;
+    @NotBlank(message = "Telefone é obrigatório")
+    private String telefone;
 
-    // Campos adicionais para Policial, Gestor, etc.
-    private String delegacia;
-    private String distintivo;
-    private String ra;
-    private String departamento;
-    private String cargo;
+    @NotBlank(message = "CEP é obrigatório")
+    private String cep;
 
-    @AssertTrue(message = "Campos obrigatórios não preenchidos corretamente")
-    public boolean isValid() {
-        // Verifica se os campos obrigatórios estão preenchidos com base no tipo de usuário
-        if (tipo == null) {
-            return false;
-        }
+    @NotBlank(message = "Logradouro é obrigatório")
+    private String logradouro;
 
-        // Para tipo = 2 (Policial), os campos delegacia, distintivo e ra são obrigatórios
-        if (tipo == 2 && (delegacia == null || delegacia.isEmpty() || distintivo == null || distintivo.isEmpty() || ra == null || ra.isEmpty())) {
-            return false;
-        }
+    @NotBlank(message = "Cidade é obrigatória")
+    private String cidade;
 
-        // Para tipo = 5 (Gestor), os campos departamento e cargo são obrigatórios
-        if (tipo == 5 && (departamento == null || departamento.isEmpty() || cargo == null || cargo.isEmpty())) {
-            return false;
-        }
+    @NotBlank(message = "Estado é obrigatório")
+    private String estado;
 
-        return true;
-    }
+    @NotBlank(message = "Bairro é obrigatório")
+    private String bairro;
+
+    @NotBlank(message = "Número é obrigatório")
+    private String numero;
+
+    private String complemento;
+
+    @NotBlank(message = "Gênero é obrigatório")
+    private String genero;
+
+    private Boolean alerta;
+
+    @NotNull(message = "Tipo de usuário é obrigatório")
+    private Long tipo; // ID do Role (ADMIN = 1, ADMINISTRATIVO = 2, por exemplo)
 }

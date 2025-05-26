@@ -25,7 +25,7 @@ public class CustomUserDetailsService implements org.springframework.security.co
         return new User(
                 userEntity.getUsername(),
                 userEntity.getPassword(),
-                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(userEntity.getRole().getName().name()))
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(userEntity.getRole().getName()))
         );
     }
 

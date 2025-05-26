@@ -5,17 +5,16 @@ import lombok.Setter;
 
 import javax.persistence.*;
 
-@Getter
-@Setter
 @Entity
 @Table(name = "TB_USUARIO_ROLE")
+@Getter
+@Setter
 public class Role {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "ROLE", nullable = false, unique = true)
-    private RoleType name;
+    @Column(name = "ROLE", nullable = false, unique = true, length = 100)
+    private String name;
 }
+
