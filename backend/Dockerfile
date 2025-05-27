@@ -1,7 +1,7 @@
 # Etapa de build
 FROM maven:3.9.6-eclipse-temurin-21 AS build
 WORKDIR /app
-COPY backend/ /app
+COPY . /app
 RUN mvn clean package -DskipTests
 
 # Etapa de execução
