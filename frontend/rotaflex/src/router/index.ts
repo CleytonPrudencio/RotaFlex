@@ -1,11 +1,16 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import TelaInicial from '../views/TelaInicial.vue'
-
+import RotaAbastecimento from '../views/Rota/DetalhesRota.vue'
 const routes = [
   {
     path: '/',
     name: 'TelaInicial',
     component: TelaInicial,
+  },
+  {
+    path: '/rota',
+    name: 'RotaAbastecimento',
+    component: RotaAbastecimento,
   },
 ]
 

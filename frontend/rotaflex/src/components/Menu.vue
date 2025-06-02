@@ -5,6 +5,7 @@ header.navbar
       img(src="@/assets/logosite.png", alt="Logo")
     nav.nav-links
       RouterLink(to="/", exact) Início
+      RouterLink(to="/rota", exact) Rota e Abastecimento
 </template>
 
 <script setup lang="ts">
