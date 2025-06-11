@@ -115,6 +115,7 @@ div.app-container
           :class="{ 'passo-atual': i === passoAtual }"
         )
           | {{ step.instruction }} — {{ (step.distance / 1000).toFixed(2) }} km
+    div#street-view(style="height: 400px; width: 100%; margin-top: 20px")
 
     button.btn-warning(v-if="navegando" @click="pararGeolocalizacao") Parar Navegação
 
@@ -162,6 +163,7 @@ export default defineComponent({
     const userPosition = ref<[number, number] | null>(null)
     const watchId = ref<number | null>(null)
     const tipoVeiculo = ref('carro')
+    let panorama: google.maps.StreetViewPanorama
 
     const origemSugestoes = ref<Suggestion[]>([])
     const destinoSugestoes = ref<Suggestion[]>([])
@@ -187,12 +189,44 @@ export default defineComponent({
     })
 
     onMounted(() => {
+      // Inicializa o mapa Leaflet
       map = L.map('map').setView([-23.5505, -46.6333], 13)
 
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
       }).addTo(map)
+
+      // Inicializa o Google Street View
+      panorama = new google.maps.StreetViewPanorama(
+        document.getElementById('street-view') as HTMLElement,
+        {
+          position: { lat: -23.5505, lng: -46.6333 }, // mesma posição inicial
+          pov: { heading: 0, pitch: 0 },
+          zoom: 1,
+        },
+      )
     })
+
+    function atualizarStreetView(lat: number, lng: number) {
+      if (panorama) {
+        panorama.setPosition({ lat, lng })
+      }
+    }
+
+    function calcularHeading(lat1: number, lng1: number, lat2: number, lng2: number): number {
+      const dLng = ((lng2 - lng1) * Math.PI) / 180
+      const lat1Rad = (lat1 * Math.PI) / 180
+      const lat2Rad = (lat2 * Math.PI) / 180
+
+      const y = Math.sin(dLng) * Math.cos(lat2Rad)
+      const x =
+        Math.cos(lat1Rad) * Math.sin(lat2Rad) -
+        Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLng)
+      const heading = Math.atan2(y, x) * (180 / Math.PI)
+
+      return (heading + 360) % 360 // normaliza de 0–360
+    }
+
     const navegando = ref(false)
     function atualizarPosicaoNoMapa() {
       if (!userPosition.value || !map) return
@@ -219,33 +253,111 @@ export default defineComponent({
       }
     })
     const passoAtual = ref(0)
+    const streetViewService = new google.maps.StreetViewService()
 
     function atualizarPassoAtual() {
-      if (!userPosition.value || steps.value.length === 0) return
+      if (!userPosition.value || steps.value.length === 0 || !panorama) return
 
       const userLatLng = L.latLng(userPosition.value[0], userPosition.value[1])
 
-      for (let i = passoAtual.value; i < steps.value.length; i++) {
+      for (let i = 0; i < steps.value.length; i++) {
         const step = steps.value[i]
         const stepLatLng = L.latLng(getStepLatLng(step))
-
         const distance = userLatLng.distanceTo(stepLatLng)
 
         if (distance < 30) {
-          passoAtual.value = i + 1
+          if (passoAtual.value !== i) {
+            passoAtual.value = i
+            streetViewService.getPanorama({ location: stepLatLng, radius: 50 }, (data, status) => {
+              if (!panorama) return // garante que panorama existe
+
+              if (status === google.maps.StreetViewStatus.OK && data && data.location) {
+                panorama.setPano(data.location.pano)
+                panorama.setPov({ heading: 0, pitch: 0 })
+                panorama.setVisible(true)
+              } else {
+                panorama.setPosition(stepLatLng)
+              }
+            })
+          }
+          break
         }
       }
     }
+
     function formatarTempoEstimado(minutosTotais: number): string {
       const minutos = Math.floor(minutosTotais)
       const segundos = Math.round((minutosTotais - minutos) * 60)
       return `${minutos}m ${segundos}s`
     }
     function getStepLatLng(step: any): [number, number] {
-      const coord = step?.geometry?.coordinates?.[0]
-      if (!coord) throw new Error('Coordenada do passo inválida')
-      return [coord[1], coord[0]] // invertido porque Leaflet usa [lat, lon]
+      const wayPoints = step?.way_points
+      if (!Array.isArray(wayPoints) || wayPoints.length === 0) {
+        console.warn('Step sem way_points:', step)
+        throw new Error('Passo sem way_points válidos')
+      }
+
+      const geometry = rotaInfo.value?.geometry
+      if (!geometry || !Array.isArray(geometry.coordinates)) {
+        throw new Error('Geometria principal ausente ou inválida')
+      }
+
+      const [startIndex] = wayPoints
+      const coord = geometry.coordinates[startIndex]
+      if (!Array.isArray(coord) || coord.length < 2) {
+        throw new Error('Coordenada do passo inválida')
+      }
+
+      const [lon, lat] = coord
+      return [lat, lon]
     }
+    let streetViewInterval: any = null
+
+    async function simularStreetViewAutomatico() {
+      if (!steps.value.length || !panorama) return
+
+      let i = 0
+
+      clearInterval(streetViewInterval)
+
+      streetViewInterval = setInterval(() => {
+        if (i >= steps.value.length - 1) {
+          clearInterval(streetViewInterval)
+          return
+        }
+
+        try {
+          const origemLatLng = getStepLatLng(steps.value[i])
+          const destinoLatLng = getStepLatLng(steps.value[i + 1])
+          const heading = calcularHeading(
+            origemLatLng[0],
+            origemLatLng[1],
+            destinoLatLng[0],
+            destinoLatLng[1],
+          )
+
+          const latLng = new google.maps.LatLng(origemLatLng[0], origemLatLng[1])
+          const svService = new google.maps.StreetViewService()
+
+          svService.getPanorama({ location: latLng, radius: 50 }, (data, status) => {
+            if (status === google.maps.StreetViewStatus.OK && data && data.location) {
+              panorama.setPano(data.location.pano)
+            } else {
+              panorama.setPosition(latLng)
+            }
+
+            panorama.setPov({ heading, pitch: 0 })
+            panorama.setVisible(true)
+          })
+
+          i++
+        } catch (e) {
+          console.warn('Erro ao avançar Street View:', e)
+          clearInterval(streetViewInterval)
+        }
+      }, 3000) // 3 segundos por passo (ajuste conforme quiser)
+    }
+
     function iniciarNavegacao() {
       navegando.value = true
       iniciarGeolocalizacao()
@@ -263,9 +375,10 @@ export default defineComponent({
           const lat = pos.coords.latitude
           const lon = pos.coords.longitude
 
-          userPosition.value = [lat, lon] // <- ATUALIZA posição global
-          atualizarPosicaoNoMapa()
-          atualizarPassoAtual() // <- Atualiza passo com base na posição atual
+          userPosition.value = [lat, lon] // Atualiza a posição global
+          atualizarPosicaoNoMapa() // Atualiza a posição no mapa
+          atualizarPassoAtual() // Atualiza o passo com base na posição atual
+          atualizarStreetView(lat, lon) // Atualiza o Street View com a nova posição
         },
         (err) => {
           console.error('Erro na geolocalização:', err)
@@ -441,9 +554,45 @@ export default defineComponent({
 
         rotaLayer = L.geoJSON(data).addTo(map)
         map.fitBounds(rotaLayer.getBounds())
+        // === Mostrar Street View no ponto inicial da rota ===
+        // Dentro da função calcularRota (continuação)
+
+        // === Mostrar Street View no ponto inicial da rota ===
+        if (steps.value.length >= 2 && panorama) {
+          const origemLatLng = [origemCoords[1], origemCoords[0]] // Lembre-se: [lat, lng]
+          const proximoLatLng =
+            steps.value.length >= 1
+              ? getStepLatLng(steps.value[0])
+              : [origemLatLng[0] + 0.0001, origemLatLng[1]] // Fallback para gerar um heading
+
+          const heading = calcularHeading(
+            origemLatLng[0],
+            origemLatLng[1],
+            proximoLatLng[0],
+            proximoLatLng[1],
+          )
+
+          const latLng = new google.maps.LatLng(origemLatLng[0], origemLatLng[1])
+          const svService = new google.maps.StreetViewService()
+
+          svService.getPanorama({ location: latLng, radius: 50 }, (data, status) => {
+            if (!panorama) return
+
+            if (status === google.maps.StreetViewStatus.OK && data && data.location) {
+              panorama.setPano(data.location.pano)
+              panorama.setPov({ heading, pitch: 0 })
+              panorama.setVisible(true)
+            } else {
+              panorama.setPosition(latLng)
+              panorama.setPov({ heading, pitch: 0 })
+              panorama.setVisible(true)
+            }
+          })
+        }
       } catch (error: any) {
         alert(error.message || 'Erro ao calcular rota')
       }
+      simularStreetViewAutomatico()
     }
     function traduzirInstrucao(instrucao: string): string {
       // Mapeamento de direções
